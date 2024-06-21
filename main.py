@@ -1,99 +1,166 @@
 import asyncio
 import os
 import random
-import time
-
-from aiogram.dispatcher.filters import Text
-import aiogram
-import executor
-from aiogram import Bot, Dispatcher, types
+from aiogram import types, F
+from aiogram.types import InputFile, FSInputFile, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from pytube import YouTube
+from aiogram import Bot, Dispatcher
+from aiogram.filters import CommandStart
+import logging
 
 token = '6136167557:AAHEohAi6jN0yQERVRuUp6AdaGKi3StxoYU'
 bot = Bot(token)
-dp = Dispatcher(bot)
+dp = Dispatcher()
 
-"""
-Кнопку и функционал для скачки только аудио
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-"""
-
-
-@dp.message_handler(commands=['start'])
-async def start_commands(message: types.Message):
-    start_button = ["Скачать видео и аудио"]  # "Скачать видео", 'Скачать Аудио'
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(*start_button)
-
-    await message.answer('Ну привет {0.first_name} 👋'.format(message.from_user), reply_markup=keyboard)
-
-    photo = open("hello_user/kiss-lip-kiss.gif", 'rb')
-    await bot.send_animation(message.chat.id, photo)
+# Создание клавиатуры
+builder = InlineKeyboardBuilder()
+builder.add(InlineKeyboardButton(text="Скачать Аудио", callback_data="download_audio"))
+builder.add(InlineKeyboardButton(text="Скачать Видео", callback_data="download_video"))
+keyboard = builder.as_markup()
 
 
-@dp.message_handler(Text(equals='Скачать видео и аудио'))
-async def get_link_audio(message: types.Message):
-    await message.answer('Нужна ссылка на видос.....')
+@dp.message(CommandStart())
+async def cmd_start(message: types.Message):
+    """
+    Стартовое меню с приветствием и кнопками.
+
+    Нужно добавить GIF.....
+
+    """
+    gif_file_funny = FSInputFile("hello_user/kiss-lip-kiss.gif")
+    # ....
+    # builder = InlineKeyboardBuilder()
+    # builder.add(types.InlineKeyboardButton(text="Скачать Аудио", callback_data="download_audio"))
+    # builder.add(types.InlineKeyboardButton(text="Скачать Видео", callback_data="download_video"))
+    # .....
+    await message.answer(f'Привет, {message.from_user.first_name}!')
+    await bot.send_animation(chat_id=message.chat.id, animation=gif_file_funny, reply_markup=keyboard)
 
 
-# @dp.message_handler(Text(equals='Скачать видео'))
-# async def get_link_video(message: types.Message):
-#     await message.answer("Пожалуйста, отправьте ссылку на видео для скачивания.")
+user_data = {}  # Храним пользователей и type, audio or video
 
 
-@dp.message_handler()
-async def download_audio(message: types.Message):
-    """Загрузка Аудио"""
+@dp.callback_query(lambda c: c.data == "download_audio")
+async def get_link_audio(callback_query: types.CallbackQuery):
+    """
+    Проверяем что user нажал на download_audio в def cmd_start.
+    """
+    user_data[callback_query.from_user.id] = {'type': 'audio'}
+    await callback_query.message.answer("Пожалуйста, отправьте ссылку на видео для скачивания аудио.")
+
+
+@dp.callback_query(lambda c: c.data == "download_video")
+async def get_link_video(callback_query: types.CallbackQuery):
+    """
+    Проверяем что user нажал на download_video в def cmd_start.
+    Так-же присваиваем type в user_data
+    """
+    user_data[callback_query.from_user.id] = {'type': 'video'}
+    await callback_query.message.answer("Пожалуйста, отправьте ссылку на видео для скачивания видео.")
+
+
+@dp.message()
+async def save_link_and_download(message: types.Message):
+    """
+    Передаем тип и ссылку в def на скачивания либо аудио либо видео.
+    И наче просим выбрать что ему нужно скачать.
+    """
+    user_id = message.from_user.id
+    if user_id not in user_data:
+        await message.answer("Пожалуйста, выберите, что вы хотите скачать, используя кнопки.")
+
+    user_data[user_id]['url'] = message.text
+    if user_data[user_id]['type'] == 'audio':
+        await download_audio(message, user_data[user_id]['url'])
+    elif user_data[user_id]['type'] == 'video':
+        await download_video(message, user_data[user_id]['url'])
+
+
+async def download_audio(message: types.Message, audio_url: str):
+    """
+    Скачиваем аудио с видео ролика ТОЛЬКО YOUTUBE.
+    Тут шутки и приколы в сторону user, что бы скучно не было )
+    """
     try:
-        link_audio = YouTube(message.text)
+        link_audio = YouTube(audio_url)
         stream = link_audio.streams.filter(only_audio=True).first()
+        if stream:
+            await message.answer('Вызываю полицию на ваш адрес! 🚔🚨')
+            audio_filename = f"{link_audio.title}.mp3"
+            audio_path = f"Аудио/{audio_filename}"
+            await asyncio.sleep(3)
 
-        await message.answer('Долго качает, посмотри на меня')
-        time.sleep(4)
-        photo = open('photo_blat/' + random.choice(os.listdir('photo_blat')), 'rb')
-        await bot.send_photo(message.chat.id, photo)
+            await message.answer('Шутка')
+            stream.download(output_path='Аудио/', filename=audio_filename)
 
-        audio_path = f'Аудио/{link_audio.title}'
-        stream.download(output_path='Аудио/', filename=link_audio.title)
+            await message.answer('Почти готово')
 
-        await message.answer('Вызываю полицию на ваш адрес')
-        time.sleep(5)
-        await message.answer("Шутка....")
+            await asyncio.sleep(3)
 
-        with open(audio_path, 'rb') as audio:
-            await bot.send_audio(message.chat.id, audio, caption=f'Аудио от видео: {link_audio.title}')
-        await message.answer('Аудио успешно извлечено и отправлено!')
+            await message.answer("Вшиваю майнер👀")
 
-        os.remove(audio_path)
+            audio_file_input = FSInputFile(audio_path)
+
+            chat_id = message.chat.id
+            await bot.send_audio(chat_id=chat_id, audio=audio_file_input, caption="Ваше аудио")
+
+            os.remove(audio_path)
+
+            await message.answer(
+                'Аудио успешно извлечено и отправлено! Может хотите скачать видео?',
+                reply_markup=keyboard)
+        else:
+            await message.answer('Не удалось найти аудиопоток.')
     except Exception as e:
-        await message.answer("Произошла ошибка при извлечении аудио")
+        await message.answer(f"Произошла ошибка при извлечении аудио: {e}")
 
-    """Загрузка Видео"""
+
+# ///////////////////////////////////////////////////
+
+async def download_video(message: types.Message, video_url: str):
+    """
+    Скачиваем видео ролик ТОЛЬКО YOUTUBE.
+    Тут шутки и приколы в сторону user, что бы скучно не было )
+    """
     try:
-        link_video = YouTube(message.text)
-
-        video_path = f'Видео/{link_video.title}'
+        link_video = YouTube(video_url)
         stream = link_video.streams.get_highest_resolution()
-        time.sleep(4)
-        photo = open('photo_blat/' + random.choice(os.listdir('photo_blat')), 'rb')
-        await bot.send_photo(message.chat.id, photo)
 
-        stream.download(output_path='Видео/', filename=link_video.title)
-        await message.answer('Почти готово')
-        time.sleep(3)
-        await message.answer("Вшиваю майнер👀")
-        with open(video_path, 'rb') as video:
-            await bot.send_video(message.chat.id, video, caption=link_video.title)
-        await message.answer(f"Видео успешно скачано!")
+        if stream:
 
-        os.remove(video_path)
+            video_path = f'Видео/{link_video.title}'
+            stream.download(output_path='Видео/', filename=link_video.title)
+            await message.answer('Почти готово')
+
+            await asyncio.sleep(3)
+
+            await message.answer("Вшиваю майнер👀")
+
+            video_file_input = FSInputFile(video_path)
+
+            chat_id = message.chat.id
+            await bot.send_video(chat_id=chat_id, video=video_file_input, caption="Ваше видео.")
+
+            os.remove(video_path)
+            await message.answer('Видео успешно скачано и отправлено! Теперь иди от сюда :)', reply_markup=keyboard)
+        else:
+            await message.answer('Не удалось найти аудиопоток.')
+
     except Exception as e:
-        await message.answer("Произошла ошибка при загрузке видео")
+        await message.answer(f"Произошла ошибка при извлечении аудио: {e}")
 
 
 async def main():
-    await dp.start_polling()
+    """
+    Передаем bot в dp -> Dispatcher() 14 строка.
+    """
+    await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
+    """Запускаем main в асинхронном режиме )"""
     asyncio.run(main())
