@@ -86,6 +86,7 @@ async def download_audio(message: types.Message, audio_url: str):
     Тут шутки и приколы в сторону user, что бы скучно не было )
     """
     try:
+        await message.answer('ВООУУУ, я посмотрел что там, поэтому я..')
         link_audio = YouTube(audio_url)
         stream = link_audio.streams.filter(only_audio=True).first()
         if stream:
@@ -94,7 +95,7 @@ async def download_audio(message: types.Message, audio_url: str):
             audio_path = f"Аудио/{audio_filename}"
             await asyncio.sleep(3)
 
-            await message.answer('Шутка')
+            await message.answer('Ладно, Шутка ), кста ↓ ')
             stream.download(output_path='Аудио/', filename=audio_filename)
 
             await message.answer('Почти готово')
@@ -106,7 +107,11 @@ async def download_audio(message: types.Message, audio_url: str):
             audio_file_input = FSInputFile(audio_path)
 
             chat_id = message.chat.id
-            await bot.send_audio(chat_id=chat_id, audio=audio_file_input, caption="Ваше аудио")
+
+            await bot.send_audio(chat_id=chat_id, audio=audio_file_input, caption="Ваше аудио, приятного прослушивания")
+            await bot.send_sticker(
+                message.from_user.id,
+                sticker="CAACAgEAAxkBAAEGUTxmdT8I9Yg45FEFesy3wRfQOfu1cAACYwADwKwII3myhHDslxHDNQQ")
 
             os.remove(audio_path)
 
@@ -127,6 +132,13 @@ async def download_video(message: types.Message, video_url: str):
     Тут шутки и приколы в сторону user, что бы скучно не было )
     """
     try:
+        await message.answer('Серьёзно, ты ещё это и посмотреть хочешь')
+        await asyncio.sleep(3)
+
+        await bot.send_sticker(
+            message.from_user.id,
+            sticker="CAACAgIAAxkBAAEGUSxmdT0kAVXqpzyMcd9UarhSI4tpQAAC9gQAAhnydRtt4ksfOtJBXTUE")
+
         link_video = YouTube(video_url)
         stream = link_video.streams.get_highest_resolution()
 
