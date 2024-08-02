@@ -26,3 +26,5 @@ six==1.16.0
 typing_extensions==4.10.0
 verboselogs==1.7
 yarl==1.9.4
+
+pytubefix==6.6.2
